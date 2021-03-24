@@ -36,7 +36,7 @@ volatile unsigned long counter = 0;
 int flag = 0;
 int x = 2;
 int timer = 0;
-const int sleeping = 2;  //12 hours 8 3600 /8sec WD = 5400
+const int sleeping = 6;  //12 hours 8 3600 /8sec WD = 5400
 int activity = 0;   //0 - обычная работа. 1 - сработка прерывания по контакту(тревога)
 
 
@@ -55,15 +55,15 @@ const int pwr_gsm = 5;
 #define SerialAT Serial
 
 // or Software Serial on Uno, Nano
-#include <SoftwareSerial.h>
-SoftwareSerial SerialMon(4, 3); // RX, TX
+//#include <SoftwareSerial.h>
+//SoftwareSerial SerialMon(4, 3); // RX, TX
 
 // Define the serial console for debug prints, if needed
-#define TINY_GSM_DEBUG SerialMon
+//#define TINY_GSM_DEBUG SerialMon
 
 // Range to attempt to autobaud
-#define GSM_AUTOBAUD_MIN 9600
-#define GSM_AUTOBAUD_MAX 115200
+//#define GSM_AUTOBAUD_MIN 9600
+//#define GSM_AUTOBAUD_MAX 115200
 
 // Add a reception delay - may be needed for a fast processor at a slow baud rate
 // #define TINY_GSM_YIELD() { delay(2); }
@@ -79,10 +79,6 @@ SoftwareSerial SerialMon(4, 3); // RX, TX
 const char apn[] = "internet";
 const char gprsUser[] = "";
 const char gprsPass[] = "";
-
-// Your WiFi connection credentials, if applicable
-const char wifiSSID[] = "YourSSID";
-const char wifiPass[] = "YourWiFiPass";
 
 // MQTT details
 const char* broker = "srv1.clusterfly.ru";
@@ -154,9 +150,10 @@ boolean mqttConnect(int msg) {
   if (msg == 1){
     mqtt.publish(topicInit, "alarm report");
   }
-  mqtt.publish(topicInit, "GsmClientTest started");
+  //mqtt.publish(topicInit, "GsmClientTest started");
   //mqtt.subscribe(topicLed);
   return mqtt.connected();
+  
 }
 
 void wakeUp() {  
@@ -165,6 +162,65 @@ void wakeUp() {
   noInterrupts();
 }
 
+void ModemConnect(){
+
+  // Restart takes quite some time
+  // To skip it, call init() instead of restart()
+  modem.restart();
+  // modem.init();
+
+  String modemInfo = modem.getModemInfo();
+  
+#if TINY_GSM_USE_GPRS
+  // Unlock your SIM card with a PIN if needed
+  if ( GSM_PIN && modem.getSimStatus() != 3 ) {
+    modem.simUnlock(GSM_PIN);
+  }
+#endif
+  for (int i = 0 ; i <= 1; i ++) { 
+    digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
+    delay(300);                       // wait for a second
+    digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW  
+    delay(300);                       // wait for a second  
+  }
+
+
+  if (!modem.waitForNetwork()) {
+    
+    delay(10000);
+    return;
+  }
+  for (int i = 0 ; i <= 2; i ++) { 
+    digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
+    delay(300);                       // wait for a second
+    digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW  
+    delay(300);                       // wait for a second  
+  }
+ 
+
+  if (modem.isNetworkConnected()) {
+    //SerialMon.println("Network connected");
+  }
+
+
+  // GPRS connection parameters are usually set after network registration
+    //SerialMon.print(F("Connecting to "));
+    //SerialMon.print(apn);
+    if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
+      //SerialMon.println(" fail");
+      delay(10000);
+      return;
+    }
+    //SerialMon.println(" success");
+
+  if (modem.isGprsConnected()) {
+    //SerialMon.println("GPRS connected");
+  }
+
+  // MQTT Broker setup
+  mqtt.setServer(broker, port);
+  //mqtt.setCallback(mqttCallback);
+}
 
 void setup() {
   pinMode(LED_PIN, OUTPUT);
@@ -178,7 +234,7 @@ void setup() {
   delay(100);
 
 
-  digitalWrite(pwr_gsm, HIGH);
+  digitalWrite(pwr_gsm, LOW);
 
   digitalWrite(LED_PIN, HIGH);
   delay(300);
@@ -191,51 +247,6 @@ void setup() {
   // TinyGsmAutoBaud(SerialAT,GSM_AUTOBAUD_MIN,GSM_AUTOBAUD_MAX);
   SerialAT.begin(9600);
   delay(6000);
-
-  // Restart takes quite some time
-  // To skip it, call k ninit() instead of restart()
-  modem.restart();
-  // modem.init();
-
-  digitalWrite(LED_PIN, HIGH);
-  delay(300);
-  digitalWrite(LED_PIN, LOW);
-  
-  String modemInfo = modem.getModemInfo();
-
-#if TINY_GSM_USE_GPRS
-  // Unlock your SIM card with a PIN if needed
-  if ( GSM_PIN && modem.getSimStatus() != 3 ) {
-    modem.simUnlock(GSM_PIN);
-  }
-#endif
-/*
-#if TINY_GSM_USE_GPRS && defined TINY_GSM_MODEM_XBEE
-  // The XBee must run the gprsConnect function BEFORE waiting for network!
-  modem.gprsConnect(apn, gprsUser, gprsPass);
-#endif
-*/
-  
-  if (!modem.waitForNetwork()) {
-    delay(10000);
-    return;
-  }
-
-
-#if TINY_GSM_USE_GPRS
-  // GPRS connection parameters are usually set after network registration
-    if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
-      delay(10000);
-      return;
-    }
-
-  if (modem.isGprsConnected()) {
-  }
-#endif
-
-  // MQTT Broker setup
-  mqtt.setServer(broker, port);
-  //mqtt.setCallback(mqttCallback);
 }
 
 void loop() {
@@ -247,7 +258,12 @@ void loop() {
       delay(300);                       // wait for a second  
     }
     digitalWrite(pwr_gsm, HIGH);
+    delay(6000);
+    ModemConnect();
     mqttConnect(1);
+    delay(5000);
+    modem.gprsDisconnect();
+    modem.poweroff();
     digitalWrite(pwr_gsm, LOW);
     
     activity = 0;
@@ -265,7 +281,12 @@ void loop() {
         delay(300);                       // wait for a second
       }
       digitalWrite(pwr_gsm, HIGH);
+      delay(6000);
+      ModemConnect();
       mqttConnect(0);
+      delay(5000);
+      modem.gprsDisconnect();
+      modem.poweroff();
       digitalWrite(pwr_gsm, LOW);
     }
     else{   //по таймеру еще не прошло нужное кол-во часов, так что ухоидм спать дальше. 
