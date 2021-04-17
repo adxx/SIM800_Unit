@@ -84,9 +84,9 @@ const char gprsPass[] = "";
 const char* broker = "srv1.clusterfly.ru";
 const unsigned int port = 9124;
 
-const char* topicLed = "user_06359334/test";
-const char* topicInit = "user_06359334/test";
-const char* topicLedStatus = "user_06359334/test";
+const char* topicLed = "user_06359334/test1";
+const char* topicInit = "user_06359334/test1";
+const char* topicLedStatus = "user_06359334/test1";
 
 #include <TinyGsmClient.h>
 #include <PubSubClient.h>
@@ -246,7 +246,8 @@ void setup() {
   // Set GSM module baud rate
   // TinyGsmAutoBaud(SerialAT,GSM_AUTOBAUD_MIN,GSM_AUTOBAUD_MAX);
   SerialAT.begin(9600);
-  delay(6000);
+  digitalWrite(0,LOW);
+  delay(3000);
 }
 
 void loop() {
@@ -258,18 +259,26 @@ void loop() {
       delay(300);                       // wait for a second  
     }
     digitalWrite(pwr_gsm, HIGH);
-    delay(6000);
+    SerialAT.begin(9600);
+    digitalWrite(0,LOW);
+    delay(3000);
     ModemConnect();
     mqttConnect(1);
     delay(5000);
     modem.gprsDisconnect();
+    
     modem.poweroff();
     digitalWrite(pwr_gsm, LOW);
-    
+    delay(2000);
     activity = 0;
     interrupts();
     attachInterrupt(digitalPinToInterrupt(interruptPin), wakeUp, FALLING);
+    SerialAT.end();
+    pinMode(0, INPUT);
+    //digitalWrite(1, LOW);
     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);  
+    SerialAT.begin(9600);
+    digitalWrite(0,LOW);
   }
   else { //кейс для обычной работы, когда просыпается по WDT.
     if (timer >= sleeping){
@@ -288,14 +297,20 @@ void loop() {
       modem.gprsDisconnect();
       modem.poweroff();
       digitalWrite(pwr_gsm, LOW);
+      delay(2000);
     }
     else{   //по таймеру еще не прошло нужное кол-во часов, так что ухоидм спать дальше. 
       timer ++;
       // Enter power down state for 8 s with ADC and BOD module disabled
       interrupts();
       attachInterrupt(digitalPinToInterrupt(interruptPin), wakeUp, FALLING);
+      SerialAT.end();
+      pinMode(0, INPUT);
+      //digitalWrite(1, LOW);
       LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);  
       detachInterrupt(digitalPinToInterrupt(interruptPin));
+      SerialAT.begin(9600);
+      digitalWrite(0,LOW);
     }
   }
   
